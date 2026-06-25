@@ -16,9 +16,21 @@ import java.util.*;
  * each tuple of a table in no particular order (e.g., as they are laid out on
  * disk).
  */
+/*
+get tupledesc is literally just a re-construction of TupleDesc with better readability.
+Sequential scan literally just uses the given DbFileIterator. There really isn't much to it.
+the methods are trivial. we're literally just offloading it to the iterator.
+feel free to read through it, maybe add some. This should be the last class.
+this specific class has almost nothing, but it builds on the previous ones.
+ */
 public class SeqScan implements OpIterator {
 
     private static final long serialVersionUID = 1L;
+    private TransactionId tid;
+    private int tableId;
+    private String tableAlias;
+
+    private DbFileIterator dbFileIterator;
 
     /**
      * Creates a sequential scan over the specified table as a part of the
@@ -38,6 +50,10 @@ public class SeqScan implements OpIterator {
      */
     public SeqScan(TransactionId tid, int tableid, String tableAlias) {
         // some code goes here
+        this.tid = tid;
+        this.tableId = tableid;
+        this.tableAlias = tableAlias;
+        this.dbFileIterator = Database.getCatalog().getDatabaseFile(tableId).iterator(tid);
     }
 
     /**
@@ -46,8 +62,7 @@ public class SeqScan implements OpIterator {
      *       be the actual name of the table in the catalog of the database
      * */
     public String getTableName() {
-	// some code goes here
-        return null;
+        return Database.getCatalog().getTableName(tableId);
     }
 
     /**
@@ -56,7 +71,7 @@ public class SeqScan implements OpIterator {
     public String getAlias()
     {
         // some code goes here
-        return null;
+        return tableAlias;
     }
 
     /**
@@ -73,6 +88,9 @@ public class SeqScan implements OpIterator {
      */
     public void reset(int tableid, String tableAlias) {
         // some code goes here
+        this.tableId = tableid;
+        this.tableAlias = tableAlias;
+        this.dbFileIterator = Database.getCatalog().getDatabaseFile(tableId).iterator(tid);
     }
 
     public SeqScan(TransactionId tid, int tableId) {
@@ -81,6 +99,7 @@ public class SeqScan implements OpIterator {
 
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
+        dbFileIterator.open();
     }
 
     /**
@@ -95,26 +114,51 @@ public class SeqScan implements OpIterator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        // return null;
+        // READ return Database.getCatalog().getTupleDesc(tableId);
+        TupleDesc oldTDesc = Database.getCatalog().getTupleDesc(tableId);
+        // init arrays of size TupleDescription
+        Type[] types = new Type[oldTDesc.numFields()];
+        String[] names = new String[oldTDesc.numFields()];
+        // reconstruct TupleDesc with required changes.
+        for (int i = 0; i < oldTDesc.numFields(); i++)
+        {
+            types[i] = oldTDesc.getFieldType(i);
+            names[i] = tableAlias + "." + oldTDesc.getFieldName(i);
+            System.out.println(names[i]);
+        }
+
+
+        return new TupleDesc(types, names);
+
+
+
     }
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        return false;
+        return dbFileIterator.hasNext();
+        // return false;
     }
 
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        // return null;
+        if (!dbFileIterator.hasNext()) {
+            throw new NoSuchElementException();
+        }
+        return dbFileIterator.next();
     }
 
     public void close() {
         // some code goes here
+        dbFileIterator.close();
     }
 
     public void rewind() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
+        dbFileIterator.rewind();
     }
 }

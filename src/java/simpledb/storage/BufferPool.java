@@ -8,7 +8,7 @@ import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
 import java.io.*;
-
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,6 +22,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * @Threadsafe, all fields are final
  */
+/*
+Literally just read above
+We have a hashmap of pages, for obvious reasons.
+Most of the methods aren't necessary to be implemented in the first lab or two.
+The most important non-trivial method here is getPage().
+There's comments in that function. The general idea is just what a Buffer Pool does,
+with the replacement policy being abstracted out for future labs.
+if page in buffer pool, simply return it. Else, evictPage() (replacement policy abstraction),
+then add the newly read page into the buffer pool. 
+*/
 public class BufferPool {
     /** Bytes per page, including header. */
     private static final int DEFAULT_PAGE_SIZE = 4096;
@@ -33,6 +43,8 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
+    ConcurrentHashMap<PageId, Page> pages = new ConcurrentHashMap<>();
+    int capacity;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -40,6 +52,9 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
+        // init
+        this.capacity = numPages;
+        this.pages = new ConcurrentHashMap<>(numPages);
     }
     
     public static int getPageSize() {
@@ -74,7 +89,16 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        // if page exists in buffer pool, return it
+        if (pages.containsKey(pid)) return pages.get(pid);
+        // if page does not exist in buffer pool, read it from disk and add it to buffer pool
+        Page page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+        // if buffer pool is full, evict a page
+        if (pages.size() >= capacity) evictPage();
+        // add the new page to the buffer pool
+        pages.put(pid, page);
+        return page;
+        // return null;
     }
 
     /**

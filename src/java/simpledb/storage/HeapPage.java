@@ -17,6 +17,38 @@ import java.io.*;
  * @see BufferPool
  *
  */
+/*
+HeapPage is ONE PAGE of a GIANT TABLE stored in memory. It is not the whole table.
+Think of it like a collection of tuples with some metadata in it.
+Think of an example table, with millions of entries
+Skater 
+------------------------
+sid(INT, PK)     name(String)     level(int)      
+0                Inori            7
+1                Hanyu            999
+2                Hikaru           8
+...
+10000            Matcha           1
+
+There's too many entries (tuples) to store in a single page.
+So it's split into pages, with a set amount of tuples in each page
+(calculation is done in functions below, how many tuples per page, how much space is
+required to store header data)
+HeapFile represents one such collection of tuples and metadata. The header data also
+keeps track of which tuples are empty (due to deletion, etc)
+Each tuple requires one bit to track if the tuple is occupied or not (0 = not occupied, 
+1 = occupied.)
+Since the sizes are recorded in bytes, and 1 byte = 8 bits, we multiply by 8 before adding 1.
+In getNumTuples(), we calculate how many tuples can fit into each page.
+We get the size of each page from the BufferPool.getPageSize(), convert it to bits with *8,
+then divide that total amount of bits with : (td.getSize() (Size of the Tuple from TupleDesc),
+then add 1 for header bit) to see how many tuples we can store per page when inclusive of
+header bit. We floor it since we can't store incomplete data. This formula is provided in lab1.md.
+To get the size of the header (getHeaderSize()), we just divide the output of getNumTuples().
+by 8. We divide by 8 as we're counting in bytes. e.g: if we have 31 rows, then we need 31 bits.
+31 bits is 31/8=3.something bytes, so we need 4 bytes to track. So we use ceil().
+Most of the other methods are provided. Just ignore them for the report.
+ */
 public class HeapPage implements Page {
 
     final HeapPageId pid;
@@ -73,7 +105,10 @@ public class HeapPage implements Page {
     */
     private int getNumTuples() {        
         // some code goes here
-        return 0;
+        // return 0;
+        // literally just buffer pool size in bits divided by tuple size in bits + 1
+        // formula for this and getHeaderSize is given in the lab1.md
+        return (int) Math.floor((BufferPool.getPageSize() * 8) / (td.getSize() * 8 + 1));
 
     }
 
@@ -84,7 +119,9 @@ public class HeapPage implements Page {
     private int getHeaderSize() {        
         
         // some code goes here
-        return 0;
+        // return 0;
+        // numSlots is getNumTuples.
+        return (int) Math.ceil(numSlots / 8.0);
                  
     }
     
@@ -118,7 +155,8 @@ public class HeapPage implements Page {
      */
     public HeapPageId getId() {
     // some code goes here
-    throw new UnsupportedOperationException("implement this");
+    //throw new UnsupportedOperationException("implement this");
+        return pid;
     }
 
     /**
@@ -288,7 +326,14 @@ public class HeapPage implements Page {
      */
     public int getNumEmptySlots() {
         // some code goes here
-        return 0;
+        //return 0;
+        int count = 0;  
+        for (int i = 0; i < numSlots; i++) {
+            if (!isSlotUsed(i)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -296,7 +341,10 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
-        return false;
+        // return false;
+        int byteIndex = i / 8;
+        int bitIndex = i % 8;
+        return (header[byteIndex] & (1 << bitIndex)) != 0;
     }
 
     /**
@@ -313,7 +361,14 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        return null;
+        // return null;
+        ArrayList<Tuple> tupleList = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            if (isSlotUsed(i)) {
+                tupleList.add(tuples[i]);
+            }
+        }
+        return tupleList.iterator();
     }
 
 }

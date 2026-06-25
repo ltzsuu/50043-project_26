@@ -6,9 +6,14 @@ import java.io.Serializable;
  * A RecordId is a reference to a specific tuple on a specific page of a
  * specific table.
  */
+/*
+Literally the same as HeapPageId.
+*/
 public class RecordId implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private PageId pid;
+    private int tupleno;
 
     /**
      * Creates a new RecordId referring to the specified PageId and tuple
@@ -20,7 +25,8 @@ public class RecordId implements Serializable {
      *            the tuple number within the page.
      */
     public RecordId(PageId pid, int tupleno) {
-        // some code goes here
+        this.pid = pid;
+        this.tupleno = tupleno;
     }
 
     /**
@@ -28,7 +34,7 @@ public class RecordId implements Serializable {
      */
     public int getTupleNumber() {
         // some code goes here
-        return 0;
+        return tupleno;
     }
 
     /**
@@ -36,7 +42,7 @@ public class RecordId implements Serializable {
      */
     public PageId getPageId() {
         // some code goes here
-        return null;
+        return pid;
     }
 
     /**
@@ -48,7 +54,14 @@ public class RecordId implements Serializable {
     @Override
     public boolean equals(Object o) {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        // check type
+        if (!(o instanceof RecordId)) {
+            return false;
+        }
+        // cast
+        RecordId other = (RecordId) o;
+        // check
+        return pid.equals(other.pid) && tupleno == other.tupleno;
     }
 
     /**
@@ -60,8 +73,14 @@ public class RecordId implements Serializable {
     @Override
     public int hashCode() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        // throw new UnsupportedOperationException("implement this");
+        int result = 0;
+        int hash_constant = 31;
+        result = hash_constant * result + pid.hashCode();
+        result = hash_constant * result + tupleno;
+        return result;
 
+        // literally wrote the exact same thing as HeapPageId;
     }
 
 }

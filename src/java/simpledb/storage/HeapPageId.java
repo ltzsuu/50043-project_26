@@ -1,7 +1,13 @@
 package simpledb.storage;
 
 /** Unique identifier for HeapPage objects. */
+/*
+Not much to say here. Literally just this. Same for RecordIds
+ */
 public class HeapPageId implements PageId {
+
+    private int tableId;
+    private int pgNo;
 
     /**
      * Constructor. Create a page id structure for a specific page of a
@@ -11,13 +17,14 @@ public class HeapPageId implements PageId {
      * @param pgNo The page number in that table.
      */
     public HeapPageId(int tableId, int pgNo) {
-        // some code goes here
+        this.tableId = tableId;
+        this.pgNo = pgNo;
     }
 
     /** @return the table associated with this PageId */
     public int getTableId() {
         // some code goes here
-        return 0;
+        return tableId;
     }
 
     /**
@@ -26,7 +33,7 @@ public class HeapPageId implements PageId {
      */
     public int getPageNumber() {
         // some code goes here
-        return 0;
+        return pgNo;
     }
 
     /**
@@ -37,7 +44,12 @@ public class HeapPageId implements PageId {
      */
     public int hashCode() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        // throw new UnsupportedOperationException("implement this");
+        int result = 0;
+        int hash_constant = 31;
+        result = hash_constant * result + tableId;
+        result = hash_constant * result + pgNo;
+        return result;
     }
 
     /**
@@ -49,7 +61,14 @@ public class HeapPageId implements PageId {
      */
     public boolean equals(Object o) {
         // some code goes here
-        return false;
+        // check type
+        if (!(o instanceof HeapPageId)) {
+            return false;
+        }
+        // cast
+        HeapPageId other = (HeapPageId) o;
+        // check
+        return tableId == other.tableId && pgNo == other.pgNo;
     }
 
     /**

@@ -21,14 +21,36 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * @Threadsafe
  */
+/*
+The Catalog class is just the librarian of the database.
+Honestly, not much to it.
+It just initialises 4 maps that point from name to Id, then Id to the rest of the relevant
+-fields.
+Most of the methods are trivial. loadSchema() was provided.
+addTable(): Adds a table to the catalog.
+There's a check in front to see if the name already exists, and if it does, remove it so we 
+can make a new one.
+We then update all 4 fields so the Catalog remains updated and able to provide proper 
+information.
+*/
 public class Catalog {
 
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
+
+    private Map<String, Integer> nameToId;
+    private Map<Integer, DbFile> idToFile;
+    private Map<Integer, TupleDesc> idToTupleDesc;
+    private Map<Integer, String> idToPkeyField;
+    
     public Catalog() {
         // some code goes here
+        this.nameToId = new HashMap<>();
+        this.idToFile = new HashMap<>();
+        this.idToTupleDesc = new HashMap<>();
+        this.idToPkeyField = new HashMap<>();
     }
 
     /**
@@ -42,6 +64,27 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+        if (name == null) {
+            throw new IllegalArgumentException("Table name cannot be null");
+        }
+        int tableId = file.getId();
+        // handle dupe names
+        if (this.nameToId.containsKey(name)) {
+            int oldTableId = this.nameToId.get(name);
+            this.idToFile.remove(oldTableId);
+            this.idToTupleDesc.remove(oldTableId);
+            this.idToPkeyField.remove(oldTableId);
+        }
+        if (this.idToFile.containsKey(tableId)) {
+            String oldName =  getTableName(tableId);
+            if (oldName != null) {
+                this.nameToId.remove(oldName);
+            }
+        }
+        this.nameToId.put(name, tableId);
+        this.idToFile.put(tableId, file);
+        this.idToTupleDesc.put(tableId, file.getTupleDesc());
+        this.idToPkeyField.put(tableId, pkeyField);
     }
 
     public void addTable(DbFile file, String name) {
@@ -65,7 +108,11 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        Integer id = this.nameToId.get(name);
+        if (id == null) {
+            throw new NoSuchElementException("Table not found: " + name);
+        }
+        return id;
     }
 
     /**
@@ -76,7 +123,11 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        TupleDesc tupleDesc = this.idToTupleDesc.get(tableid);
+        if (tupleDesc == null) {
+            throw new NoSuchElementException("Table not found: " + tableid);
+        }
+        return tupleDesc;
     }
 
     /**
@@ -87,27 +138,42 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        DbFile dbFile = this.idToFile.get(tableid);
+        if (dbFile == null) {
+            throw new NoSuchElementException("Table not found: " + tableid);
+        }
+        return dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
-        return null;
+        return this.idToPkeyField.get(tableid);
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+        // return null;
+        return this.idToFile.keySet().iterator();
     }
 
     public String getTableName(int id) {
         // some code goes here
+        // return null;
+        for (Map.Entry<String, Integer> entry : this.nameToId.entrySet()) {
+            if (entry.getValue().equals(id)) {
+                return entry.getKey();
+            }
+        }
         return null;
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+        this.nameToId.clear();
+        this.idToFile.clear();
+        this.idToTupleDesc.clear();
+        this.idToPkeyField.clear();
     }
     
     /**
