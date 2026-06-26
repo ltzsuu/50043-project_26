@@ -136,7 +136,7 @@ public class HeapFile implements DbFile {
 
     public int getPageSize() {
         // return BufferPool.DEFAULT_PAGE_SIZE;
-        return 4096;
+        return BufferPool.getPageSize();
         // temp
     }
 
