@@ -288,7 +288,15 @@ public class HeapPage implements Page {
      */
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
-        // not necessary for lab1
+        //lab2
+        RecordId tid = t.getRecordId();
+        HeapPageId hpid = (HeapPageId) tid.getPageId();
+        int tupleNum = tid.tupleno();
+        if (!hpid.equals(pid) || !isSlotUsed(tupleNum)) {
+            throw new DbException("this tuple is not on this page, or tuple slot is already empty");
+        }
+        tuples[tupleNum]=null;
+        markSlotUsed(tupleNum, false);
     }
 
     /**
@@ -300,7 +308,21 @@ public class HeapPage implements Page {
      */
     public void insertTuple(Tuple t) throws DbException {
         // some code goes here
-        // not necessary for lab1
+        // lab2
+        if (getNumEmptySlots() == 0) {                      
+            throw new DbException("the page is full (no empty slots)");
+        }
+        if (!td.equals(t.getTupleDesc())) {
+            throw new DbException("tupleDesc is mismatch");
+        }
+        for (int i = 0; i < numSlots; i++) {
+            if (!isSlotUsed(i)) {                           
+                tuples[i] = t;
+                t.setRecordId(new RecordId(pid, i));
+                markSlotUsed(i, true);                       // modify header bitmap
+                return;
+            }
+        }
     }
 
     /**
@@ -309,7 +331,12 @@ public class HeapPage implements Page {
      */
     public void markDirty(boolean dirty, TransactionId tid) {
         // some code goes here
-	// not necessary for lab1
+        // lab2
+        if (dirty) {
+            this.dirtyTid = tid;
+        } else {
+            this.dirtyTid = null;
+        }
     }
 
     /**
@@ -317,9 +344,9 @@ public class HeapPage implements Page {
      */
     public TransactionId isDirty() {
         // some code goes here
-	// Not necessary for lab1
-        return null;      
-    }
+	    // lab2
+         return dirtyTid;
+}
 
     /**
      * Returns the number of empty slots on this page.
@@ -352,7 +379,14 @@ public class HeapPage implements Page {
      */
     private void markSlotUsed(int i, boolean value) {
         // some code goes here
-        // not necessary for lab1
+        // lab 2
+        int byteIndex = i / 8;
+        int bitIndex = i % 8;
+        if (value) {
+            header[byteIndex] |= (1 << bitIndex);
+        } else {
+            header[byteIndex] &= ~(1 << bitIndex);
+        }
     }
 
     /**
