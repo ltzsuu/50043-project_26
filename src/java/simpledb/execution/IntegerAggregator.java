@@ -22,6 +22,7 @@ public class IntegerAggregator implements Aggregator {
     private boolean hasGroupings = false;
     private Map<Field, Integer> aggregatedResults;
     private Map<Field, Integer> countbyField;
+    private static final Field NO_GROUPING_FIELD = new IntField(NO_GROUPING);
     /**
      * Aggregate constructor
      * 
@@ -109,33 +110,35 @@ public class IntegerAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        TTupleDesc td;
-    if (hasGroupings) {
-        td = new TupleDesc(new Type[]{this.groupByFieldType, Type.INT_TYPE});
-    } else {
-        td = new TupleDesc(new Type[]{Type.INT_TYPE});
-    }
-
-    ArrayList<Tuple> tuples = new ArrayList<>();
-    for (Map.Entry<Field, Integer> entry : aggregatedResults.entrySet()) {
-        Field key = entry.getKey();
-        int aggregateVal;
-        if (this.aggOp == Op.AVG) {
-            aggregateVal = entry.getValue() / countbyField.get(key);
-        } else {
-            aggregateVal = entry.getValue();
+        TupleDesc td;
+        if (hasGroupings) {
+            td = new TupleDesc(new Type[]{this.gbfieldtype, Type.INT_TYPE});
         }
-
-        Tuple t = new Tuple(td);
-        if (!hasGroupings) {                       // == NO_GROUPING
-            t.setField(0, new IntField(aggregateVal));
-        } else {
-            t.setField(0, key);
-            t.setField(1, new IntField(aggregateVal));
+        else {
+            td = new TupleDesc(new Type[]{Type.INT_TYPE});
         }
-        tuples.add(t);
-    }
-    return new TupleIterator(td, tuples);
+        ArrayList<Tuple> tuples = new ArrayList<>();
+        for (Map.Entry<Field, Integer> entry : aggregatedResults.entrySet()) {
+            Field key = entry.getKey();
+            int aggregateVal;
+            if (this.what == Op.AVG) {
+                aggregateVal = entry.getValue() / countbyField.get(key);
+            } 
+            else {
+                aggregateVal = entry.getValue();
+            }
+
+            Tuple t = new Tuple(td);
+            if (!hasGroupings) {
+                t.setField(0, new IntField(aggregateVal));
+            } 
+            else {
+                t.setField(0, key);
+                t.setField(1, new IntField(aggregateVal));
+            }
+            tuples.add(t);
+        }
+        return new TupleIterator(td, tuples);
     }
 
 }
