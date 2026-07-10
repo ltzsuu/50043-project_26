@@ -56,7 +56,7 @@ public class HeapPage implements Page {
     final byte[] header;
     final Tuple[] tuples;
     final int numSlots;
-
+    private TransactionId dirtyTid;
     byte[] oldData;
     private final Byte oldDataLock= (byte) 0;
 
@@ -291,7 +291,7 @@ public class HeapPage implements Page {
         //lab2
         RecordId tid = t.getRecordId();
         HeapPageId hpid = (HeapPageId) tid.getPageId();
-        int tupleNum = tid.tupleno();
+        int tupleNum = tid.getTupleNumber();
         if (!hpid.equals(pid) || !isSlotUsed(tupleNum)) {
             throw new DbException("this tuple is not on this page, or tuple slot is already empty");
         }

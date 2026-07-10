@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+import simpledb.storage.TupleIterator;
 /**
  * Knows how to compute some aggregate over a set of IntFields.
  */

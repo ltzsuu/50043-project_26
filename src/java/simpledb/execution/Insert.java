@@ -7,7 +7,9 @@ import simpledb.storage.Tuple;
 import simpledb.storage.TupleDesc;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
-
+import simpledb.common.Type;
+import simpledb.storage.IntField;
+import java.io.IOException;
 /**
  * Inserts tuples read from the child operator into the tableId specified in the
  * constructor
@@ -19,7 +21,7 @@ public class Insert extends Operator {
     private OpIterator child;
     private int tableId;
     private TupleDesc td;
-    private boolean inserted = false
+    private boolean inserted = false;
     /**
      * Constructor.
      *

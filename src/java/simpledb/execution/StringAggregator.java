@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import simpledb.storage.TupleIterator;
 /**
  * Knows how to compute some aggregate over a set of StringFields.
  */
@@ -91,3 +91,4 @@ public class StringAggregator implements Aggregator {
         }
         return new TupleIterator(td, tuples);
     }
+}

@@ -16,6 +16,7 @@ public class Join extends Operator {
     private JoinPredicate p;
     private OpIterator child1;
     private OpIterator child2;
+    private Tuple currentOuter = null;
     /**
      * Constructor. Accepts two children to join and the predicate to join them
      * on
@@ -89,6 +90,7 @@ public class Join extends Operator {
         // some code goes here
         child1.rewind();
         child2.rewind();
+        currentOuter = null;
     }
 
     /**
@@ -111,25 +113,29 @@ public class Join extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        while (child1.hasNext()) {
-            Tuple tuple1 = child1.next();
-            while (child2.hasNext()) {
-                Tuple tuple2 = child2.next();
-                if (p.filter(tuple1, tuple2)) {
-                    Tuple mergedTuple = new Tuple(getTupleDesc());
-                    int index = 0;
-                    for (int i = 0; i < tuple1.getTupleDesc().numFields(); i++) {
-                        mergedTuple.setField(index++, tuple1.getField(i));
-                    }
-                    for (int i = 0; i < tuple2.getTupleDesc().numFields(); i++) {
-                        mergedTuple.setField(index++, tuple2.getField(i));
-                    }
-                    return mergedTuple;
-                }
-            }
-            child2.rewind();
+       while (currentOuter != null || child1.hasNext()) {
+        if (currentOuter == null) {
+            currentOuter = child1.next();   
         }
-        return null;
+       
+        while (child2.hasNext()) {
+            Tuple tuple2 = child2.next();
+            if (p.filter(currentOuter, tuple2)) {
+                Tuple mergedTuple = new Tuple(getTupleDesc());
+                int index = 0;
+                for (int i = 0; i < currentOuter.getTupleDesc().numFields(); i++) {
+                    mergedTuple.setField(index++, currentOuter.getField(i));
+                }
+                for (int i = 0; i < tuple2.getTupleDesc().numFields(); i++) {
+                    mergedTuple.setField(index++, tuple2.getField(i));
+                }
+                return mergedTuple;   
+            }
+        }
+        currentOuter = null;
+        child2.rewind();
+    }
+    return null;
     }
 
     @Override
