@@ -1,7 +1,15 @@
 package simpledb.execution;
 
 import simpledb.common.Type;
+import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
+import simpledb.storage.TupleDesc;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Knows how to compute some aggregate over a set of StringFields.
@@ -15,6 +23,7 @@ public class StringAggregator implements Aggregator {
     private Op what;
     boolean hasGroupings = false;
     private Map<Field, Integer> aggregatedResults;
+    private static final Field NO_GROUPING_FIELD = new IntField(NO_GROUPING);
     /**
      * Aggregate constructor
      * @param gbfield the 0-based index of the group-by field in the tuple, or NO_GROUPING if there is no grouping
