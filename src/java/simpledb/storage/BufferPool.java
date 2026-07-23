@@ -6,6 +6,7 @@ import simpledb.common.DbException;
 import simpledb.common.DeadlockException;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
+import simpledb.transaction.LockManager;
 
 import java.io.*;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class BufferPool {
 
     ConcurrentHashMap<PageId, Page> pages = new ConcurrentHashMap<>();
     int capacity;
+    private final LockManager lockManager = new LockManager();
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -90,8 +92,10 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // some code goes here
-        // if page exists in buffer pool, return it
+        // lock first, then read from the cache
+        lockManager.acquireLock(tid, pid, perm);
+
+        // return the cached page if we already have it
         if (pages.containsKey(pid)) {
             lruList.remove(pid);
             lruList.addLast(pid);
@@ -118,8 +122,8 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public  void unsafeReleasePage(TransactionId tid, PageId pid) {
-        // some code goes here
-        // not necessary for lab1|lab2
+        // release one lock for one transaction
+        lockManager.releaseLock(tid, pid);
     }
 
     /**
@@ -130,13 +134,14 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
+        lockManager.releaseAllLocks(tid);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return lockManager.holdsLock(tid, p);
     }
 
     /**
@@ -149,6 +154,32 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
+        // cleanup stuff
+        // overloaded method for rollback
+        try {
+            if (commit) {
+                // write this transaction's dirty pages to disk
+                flushPages(tid);
+            } else {
+                // not committed. Maybe deadlock, maybe aborted. Rollback
+                // throw away dirty pages so future reads see disk state
+                // linked list copy so we don't skip pages while iterating and removing from the map
+                // due to the pages being modified during iteration by discardPage()
+                // could probably use ArrayList tbh
+                // idk
+                for (PageId pid : new LinkedList<>(pages.keySet())) {
+                    Page page = pages.get(pid);
+                    if (page != null && tid.equals(page.isDirty())) {
+                        discardPage(pid);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            // always release the transaction's locks
+            lockManager.releaseAllLocks(tid);
+        }
     }
 
     /**
@@ -250,8 +281,13 @@ public class BufferPool {
     /** Write all pages of the specified transaction to disk.
      */
     public synchronized  void flushPages(TransactionId tid) throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        // write only the pages dirtied by this transaction
+        for (PageId pid : new LinkedList<>(pages.keySet())) {
+            Page page = pages.get(pid);
+            if (page != null && tid.equals(page.isDirty())) {
+                flushPage(pid);
+            }
+        }
     }
 
     /**
