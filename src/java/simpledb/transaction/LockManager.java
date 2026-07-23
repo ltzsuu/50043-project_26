@@ -15,17 +15,16 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class LockManager {
 
-    // just in case
-    private static final long DEADLOCK_TIMEOUT_MS = 500;
-
     private final Map<PageId, Set<TransactionId>> sharedLocks;
     private final Map<PageId, TransactionId> exclusiveLocks;
     private final Map<TransactionId, Set<PageId>> transactionPages;
+    private final Map<TransactionId, Set<TransactionId>> waitingFor;
 
     public LockManager() {
         sharedLocks = new ConcurrentHashMap<>();
         exclusiveLocks = new ConcurrentHashMap<>();
         transactionPages = new ConcurrentHashMap<>();
+        waitingFor = new ConcurrentHashMap<>();
     }
 
     /*
@@ -36,28 +35,30 @@ public class LockManager {
     public void acquireLock(TransactionId tid, PageId pid, Permissions perm)
             throws TransactionAbortedException {
 
-        long deadline = System.currentTimeMillis() + DEADLOCK_TIMEOUT_MS;
-
         synchronized (this) {
             while (true) {
                 if (perm == Permissions.READ_ONLY) {
                     // Exclusive lock covers read permission
                     if (hasExclusiveLock(tid, pid)) {
+                        clearWaitingEdges(tid);
                         trackLock(tid, pid);
                         return;
                     }
                     // Already hold shared lock
                     if (hasSharedLock(tid, pid)) {
+                        clearWaitingEdges(tid);
                         return;
                     }
                     // Grant shared if no exclusive holder exists
                     if (!exclusiveLocks.containsKey(pid) || hasExclusiveLock(tid, pid)) {
                         grantShared(tid, pid);
+                        clearWaitingEdges(tid);
                         return;
                     }
                 } else {
                     // READ_WRITE (exclusive)
                     if (hasExclusiveLock(tid, pid)) {
+                        clearWaitingEdges(tid);
                         return;
                     }
                     // retrieve current shared holders for the page
@@ -71,20 +72,29 @@ public class LockManager {
                     if (canUpgradeOrGrant) {
                         removeShared(tid, pid);
                         grantExclusive(tid, pid);
+                        clearWaitingEdges(tid);
                         return;
                     }
                 }
 
-                // Lock not available, check for timeout
-                long remaining = deadline - System.currentTimeMillis();
-                if (remaining <= 0) {
-                    // COUNTDOWN GMTK2026
+                // updated deadlock detection
+                Set<TransactionId> blockers = blockersForRequest(tid, pid, perm);
+                // update wait-for graph 
+                setWaitingEdges(tid, blockers);
+                // cycle detection. Check for deadlock before sleeping on this thread
+                if (hasCycle(tid)) {
+                    // System.out.println("Deadlock transaction " + tid + " on page " + pid);
+                    clearWaitingEdges(tid);
                     throw new TransactionAbortedException();
                 }
+
                 try {
-                    wait(remaining);
+                    // sleep & release ownership of LockManager object
+                    wait();
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    // System.out.println("Thread interrupted while waiting for lock: " + e.getMessage());
+                    clearWaitingEdges(tid);
+                    // above method
                     throw new TransactionAbortedException();
                 }
             }
@@ -102,6 +112,7 @@ public class LockManager {
         if (held != null) {
             held.remove(pid);
         }
+        removeWaitingEdgesFor(tid);
         notifyAll();
     }
 
@@ -121,6 +132,7 @@ public class LockManager {
                 }
             }
         }
+        removeWaitingEdgesFor(tid);
         notifyAll();
     }
 
@@ -139,7 +151,7 @@ public class LockManager {
 
     private boolean hasExclusiveLock(TransactionId tid, PageId pid) {
         return tid.equals(exclusiveLocks.get(pid));
-    }
+}
 
     private void grantShared(TransactionId tid, PageId pid) {
         // check if pid has a set in sharedLocks, if ABSENT, compute (new HashSet) and add it to the map,
@@ -167,4 +179,65 @@ public class LockManager {
         // needed for releaseAllLocks to know which pages to release
         transactionPages.computeIfAbsent(tid, k -> new HashSet<>()).add(pid);
     }
+
+    // all transactions preventing current tid from getting lock on pid;
+    private Set<TransactionId> blockersForRequest(TransactionId tid, PageId pid, Permissions perm) {
+        Set<TransactionId> blockers = new HashSet<>();
+        TransactionId exclusiveHolder = exclusiveLocks.get(pid);
+        // read lock only blocked by other write lock READ-ONLY
+        if (exclusiveHolder != null && !exclusiveHolder.equals(tid)) { blockers.add(exclusiveHolder); }
+        // write lock blocked by all othere locks 
+        if (perm == Permissions.READ_WRITE) {
+            Set<TransactionId> sharedHolders = sharedLocks.get(pid);
+            if (sharedHolders != null) {
+                for (TransactionId holder : sharedHolders) {
+                    if (!holder.equals(tid)) { blockers.add(holder); }
+                }
+            }
+        }
+        return blockers;
+    }
+
+    private void setWaitingEdges(TransactionId tid, Set<TransactionId> blockers) {
+        if (blockers.isEmpty()) {
+            // tid not waiting for any other transaction, remove from map
+            waitingFor.remove(tid);
+            return;
+        }
+        // tid updated to be waiting for provided blockers
+        waitingFor.put(tid, new HashSet<>(blockers));
+        // System.out.println(blockers);
+    }
+
+    // remove tid from wait for map (clearWaitingEdges) and remove it from any other transaction's waiting set
+    // normal operations
+    private void removeWaitingEdgesFor(TransactionId tid) {
+        waitingFor.remove(tid);
+        for (Set<TransactionId> blockers : waitingFor.values()) { blockers.remove(tid); }
+    }
+
+    // check if there's a cycle in graph
+    private boolean hasCycle(TransactionId startTid) {
+        // DFS for cycle deteection
+        Set<TransactionId> visited = new HashSet<>();
+        Deque<TransactionId> stack = new ArrayDeque<>();
+
+        stack.push(startTid);
+        while (!stack.isEmpty()) {
+            TransactionId currentTid = stack.pop();
+            Set<TransactionId> next = waitingFor.get(currentTid);
+            if (next == null || next.isEmpty()) { continue; }
+
+            for (TransactionId blocker : next) {
+                // System.out.println("Transaction " + startTid + " waiting for " + blocker);
+                if (blocker.equals(startTid)) { return true; }
+                if (visited.add(blocker)) { stack.push(blocker); }
+            }
+        }
+        return false;
+    }
+
+    // remove tid from wait for map
+    // remove stale waitfor edges when transaction successfully gets lock or deadlocked
+    private void clearWaitingEdges(TransactionId tid) { waitingFor.remove(tid); }
 }

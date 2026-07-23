@@ -135,6 +135,8 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         lockManager.releaseAllLocks(tid);
+        // call overloaded method
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -300,13 +302,31 @@ public class BufferPool {
         if (lruList.isEmpty()) {
             throw new DbException("Buffer pool is empty, cannot evict page");
         }
-        PageId pidToEvict = lruList.removeFirst();
-        try {
-            flushPage(pidToEvict);
-        } catch (IOException e) {
-            throw new DbException("Failed to flush page to disk during eviction");
+        // PageId pidToEvict = lruList.removeFirst();
+        // try {
+        //     flushPage(pidToEvict);
+        // } catch (IOException e) {
+        //     throw new DbException("Failed to flush page to disk during eviction");
+        // }
+        // pages.remove(pidToEvict);
+        PageId candidate = null;
+        // look thru lruList
+        for (PageId pid : lruList) {
+            // get page
+            Page page = pages.get(pid);
+            // if page is not dirty, evict it. page.isDirty() returns tid if dirty, null if not.
+            // NO STEAL
+            if (page != null && page.isDirty() == null) {
+                candidate = pid;
+                break;
+            }
         }
-        pages.remove(pidToEvict);
+
+        if (candidate == null) {
+            throw new DbException("All pages are dirty, cannot evict any page");
+        }
+        lruList.remove(candidate);
+        pages.remove(candidate);
     }
 
 }
